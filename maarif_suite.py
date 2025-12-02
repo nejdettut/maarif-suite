@@ -105,14 +105,14 @@ with tab_exam:
     with st.expander("⚙️ Sınav Ayarlarını Yapılandır (Tıkla)", expanded=False):
         c1, c2, c3 = st.columns(3)
         with c1:
-            seviye = st.selectbox("Sınıf Seviyesi:", ("İlkokul (1-4)", "Ortaokul (5-8)", "Lise (9-12)", "Üniversite Hazırlık"))
+            seviye = st.selectbox("Sınıf Seviyesi:", ("İlkokul (1-4)", "Ortaokul (5-8)", "Lise (9-12)", "Üniversite Hazırlık"), key="exam_level")
         with c2:
-            zorluk = st.slider("Zorluk:", 1, 5, 3)
+            zorluk = st.slider("Zorluk:", 1, 5, 3, key="exam_diff")
         with c3:
-            soru_sayisi = st.number_input("Soru Sayısı:", 1, 20, 5)
+            soru_sayisi = st.number_input("Soru Sayısı:", 1, 20, 5, key="exam_count")
 
     # KISIM 2: GİRİŞ VE BUTON
-    konu = st.text_input("", placeholder="Hangi konuda sınav hazırlamak istersin? (Örn: Kuvvet ve Hareket, Python Listeler)")
+    konu = st.text_input("", placeholder="Hangi konuda sınav hazırlamak istersin? (Örn: Kuvvet ve Hareket, Python Listeler)", key="exam_topic")
     generate_btn = st.button("✨ Sınavı Oluştur", key="exam_gen", type="primary", use_container_width=True)
 
     # KISIM 3: İŞLEM
@@ -181,6 +181,7 @@ with tab_exam:
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
+    st.experimental_rerun() # Temizlemek için sayfayı yeniler
 
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
@@ -196,48 +197,51 @@ with tab_meeting:
     # Giriş Alanları
     col_upload, col_record = st.columns([1, 1])
     with col_upload:
-        uploaded_file = st.file_uploader("Ses Dosyası Yükle (mp3, wav)", type=['mp3', 'wav', 'm4a'])
+        uploaded_file = st.file_uploader("Ses Dosyası Yükle (mp3, wav)", type=['mp3', 'wav', 'm4a'], key="meeting_upload")
     with col_record:
-        audio_recording = st.audio_input("Canlı Kayıt Başlat")
+        audio_recording = st.audio_input("Canlı Kayıt Başlat", key="meeting_record")
 
     ses_verisi = uploaded_file if uploaded_file else audio_recording
 
     # --- İŞLEM KISMI ---
-    if ses_verisi and st.session_state.meeting_tutanak is None:
+    if ses_verisi:
         st.write("---")
-        if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True):
-            with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
-                try:
-                    # 1. Geçici Dosya Oluştur
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
-                        tmp_file.write(ses_verisi.getvalue())
-                        tmp_file_path = tmp_file.name
+        
+        # Eğer hafızada sonuç yoksa Analiz butonunu göster.
+        if st.session_state.meeting_tutanak is None: 
+            if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True):
+                with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
+                    try:
+                        # 1. Geçici Dosya Oluştur
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+                            tmp_file.write(ses_verisi.getvalue())
+                            tmp_file_path = tmp_file.name
 
-                    # 2. SESİ YAZIYA DÖKME (Whisper)
-                    with open(tmp_file_path, "rb") as file:
-                        transcription = groq_client.audio.transcriptions.create(
-                            file=(tmp_file_path, file.read()),
-                            model="whisper-large-v3",
-                            response_format="text"
+                        # 2. SESİ YAZIYA DÖKME (Whisper)
+                        with open(tmp_file_path, "rb") as file:
+                            transcription = groq_client.audio.transcriptions.create(
+                                file=(tmp_file_path, file.read()),
+                                model="whisper-large-v3",
+                                response_format="text"
+                            )
+                        st.session_state.meeting_transkript = transcription
+                        
+                        # 3. ANALİZ ETME (Llama 3.3)
+                        prompt = f"""
+                        Aşağıdaki metin bir toplantı dökümüdür. Bunu profesyonel bir tutanak haline getir.
+                        METİN: {st.session_state.meeting_transkript}
+                        İSTENEN RAPOR FORMATI: 1. 📝 ÖZET 2. ✅ ALINAN KARARLAR 3. 📌 GÖREV DAĞILIMI
+                        """
+                        completion = groq_client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[{"role": "system", "content": "Sen profesyonel bir okul asistanısın. Türkçe cevap ver."}, {"role": "user", "content": prompt}],
                         )
-                    st.session_state.meeting_transkript = transcription
-                    
-                    # 3. ANALİZ ETME (Llama 3.3)
-                    prompt = f"""
-                    Aşağıdaki metin bir toplantı dökümüdür. Bunu profesyonel bir tutanak haline getir.
-                    METİN: {st.session_state.meeting_transkript}
-                    İSTENEN RAPOR FORMATI: 1. 📝 ÖZET 2. ✅ ALINAN KARARLAR 3. 📌 GÖREV DAĞILIMI
-                    """
-                    completion = groq_client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role": "system", "content": "Sen profesyonel bir okul asistanısın. Türkçe cevap ver."}, {"role": "user", "content": prompt}],
-                    )
-                    st.session_state.meeting_tutanak = completion.choices[0].message.content
-                    os.remove(tmp_file_path)
-                    st.rerun()
+                        st.session_state.meeting_tutanak = completion.choices[0].message.content
+                        os.remove(tmp_file_path)
+                        st.experimental_rerun() # Sayfayı yenileyip sonucu ve butonu göster
 
-                except Exception as e:
-                    st.error(f"Analiz Hatası: {e}")
+                    except Exception as e:
+                        st.error(f"Analiz Hatası: {e}")
 
     # --- SONUÇLARI GÖSTER VE KAYDET BUTONU ---
     if st.session_state.meeting_tutanak is not None:
@@ -254,7 +258,7 @@ with tab_meeting:
         
         st.write("---")
 
-        # 3. PDF OLUŞTURMA VE BUTON
+        # 3. PDF OLUŞTURMA VE BUTON (BU BUTON ASLA KAYBOLMAMALI)
         pdf_data = create_meeting_pdf(st.session_state.meeting_tutanak, st.session_state.meeting_transkript)
         
         st.download_button(
