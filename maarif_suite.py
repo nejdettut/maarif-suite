@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from groq import Groq
-from fpdf import FPDF 
+# FPDF artık kullanılmıyor (Unicode hatası nedeniyle)
 import tempfile
 import os
 from io import BytesIO 
@@ -13,7 +13,7 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
 if not GOOGLE_API_KEY or not GROQ_API_KEY:
-    st.error("HATA: API Anahtarları bulunamadı! Lütfen secrets dosyasını kontrol edin.")
+    st.error("HATA: Google API Anahtarı ve/veya Groq API Anahtarı bulunamadı! Lütfen secrets dosyasını kontrol edin.")
     st.stop()
 
 try:
@@ -27,7 +27,7 @@ try:
 except Exception as e:
     st.error(f"Groq API Hatası: {e}")
 
-# --- 2. YARDIMCI FONKSİYONLAR (WORD FONKSİYONLARI) ---
+# --- 2. YARDIMCI FONKSİYONLAR ---
 
 def tr_duzelt(metin):
     """Sadece görüntüleme için basit karakter düzeltme."""
@@ -36,7 +36,7 @@ def tr_duzelt(metin):
         metin = metin.replace(k, v)
     return metin
 
-# SINAV WORD FONKSİYONU
+# 3. WORD FONKSİYONU (SINAV ASİSTANI İÇİN)
 def create_exam_word(sorular_kismi, cevaplar_kismi):
     doc = Document()
     doc.add_heading('SINAV KAĞIDI', 0)
@@ -50,7 +50,7 @@ def create_exam_word(sorular_kismi, cevaplar_kismi):
     buffer.seek(0)
     return buffer.read()
 
-# TOPLANTI WORD FONKSİYONU
+# 4. WORD FONKSİYONU (TOPLANTI ASİSTANI İÇİN)
 def create_meeting_word(tutanak_metni, transkript_metni):
     doc = Document()
     doc.add_heading('TOPLANTI TUTANAĞI RAPORU', 0)
@@ -65,28 +65,27 @@ def create_meeting_word(tutanak_metni, transkript_metni):
     buffer.seek(0)
     return buffer.read()
 
-# CLEAR STATE
+
+# 5. CLEAR STATE
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
 
 
-# --- 6. ANA SAYFA VE TABLAR ---
+# --- 6. ANA SAYFA VE TABLAR (LOGO VE BAŞLIK KESİN ORTALA) ---
 st.set_page_config(
     page_title="Maarif Suite",
     page_icon="🎓",
     layout="wide" 
 )
 
-# --- LOGO VE BAŞLIK ---
-# Ortalamak için geniş bir orta sütun kullanıyoruz (1:6:1 oranı)
+# Ortalamak için sütunlar kullanıldı
 col_left, col_center, col_right = st.columns([1, 6, 1])
 
 with col_center:
-    # Logoyu ortalamak için CSS ile bir div kullanıyoruz
     st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
     try:
-        # Boyut 150'den 250'ye çıkarıldı.
+        # LOGO: Büyük (250px) ve ortalı
         st.image("maarif_logo.png", width=250) 
     except FileNotFoundError:
         st.markdown("<p style='text-align: center; color: gray;'>[Logo Yüklenemedi, Lütfen maarif_logo.png dosyasını kontrol edin.]</p>", unsafe_allow_html=True)
@@ -94,21 +93,21 @@ with col_center:
     
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>MAARİF SUITE</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Eğitim Teknolojilerinde İki Güç Bir Arada</p>", unsafe_allow_html=True)
-    st.write("---") # Yatay çizgi
+    st.write("---") 
 
-# TABLAR EKLE (Bu satırın hemen ardından gelmeli)
-tab_exam, tab_meeting, tab_about = st.tabs(["🎓 SINAV ASİSTANI", "🎙️ TOPLANTI ASİSTANI", "ℹ️ HAKKINDA"])
+tab_exam, tab_meeting, tab_about = st.tabs(["🎓 SINAV ASİSTANI (Gemini)", "🎙️ TOPLANTI ASİSTANI (Groq)", "ℹ️ HAKKINDA"])
+
 # ----------------------------------------------------------------------
-#                           YENİ TAB: HAKKINDA
+#                         TAB 3: HAKKINDA
 # ----------------------------------------------------------------------
 
 with tab_about:
     st.header("Vizyonumuz ve Hakkımda")
     st.subheader("👨‍💻 Geliştirici: Nejdet TUT")
     
-    st.markdown("""
+    st.markdown(f"""
     Merhaba, ben **Nejdet TUT**. Uzman bir **Bilişim Teknolojileri Öğretmeni** ve **EdTech Geliştiricisiyim**.
-    Grafik tasarım, Python ve yapay zeka alanlarındaki 12 yılı aşkın deneyimimi eğitim teknolojilerine aktararak, öğretmenlerin dijital dönüşümüne liderlik etmeyi hedefliyorum.
+    Python, Yapay Zeka ve Grafik Tasarım alanlarındaki 12 yılı aşkın deneyimimi eğitim teknolojilerine aktararak, öğretmenlerin dijital dönüşümüne liderlik etmeyi hedefliyorum.
     """)
     
     st.subheader("💡 Proje Amacı: Öğretmen Verimliliğini Artırmak")
@@ -116,7 +115,6 @@ with tab_about:
     **Maarif Suite**, öğretmenlerin üzerindeki idari ve hazırlık yükünü hafifletmek için tasarlanmıştır. Uygulamanın temel hedefleri şunlardır:
     * **Sınav Otomasyonu:** Gemini API gücüyle müfredata uyumlu sınav sorularını otomatik olarak oluşturarak hazırlık süresini **%90 oranında** azaltmak.
     * **Zaman Yönetimi:** Toplantı ve ders dökümlerini anında analiz ederek profesyonel tutanaklar hazırlamak (Groq/Whisper ile).
-    * **Eğitim Teknolojilerine Katkı:** Yapay zeka destekli akıllı sistemlerin gelişiminde aktif rol almak.
     """)
     
     st.subheader("📞 İletişim Bilgileri")
@@ -277,5 +275,3 @@ with tab_meeting:
             use_container_width=True,
             type="primary"
         )
-
-
