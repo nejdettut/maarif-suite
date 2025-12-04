@@ -29,12 +29,13 @@ except Exception as e:
 # --- 2. YARDIMCI FONKSİYONLAR ---
 
 def tr_duzelt(metin):
+    """FPDF için Türkçe karakterleri ASCII'ye dönüştürür."""
     dic = {'ğ':'g', 'Ğ':'G', 'ş':'s', 'Ş':'S', 'ı':'i', 'İ':'I', 'ç':'c', 'Ç':'C', 'ü':'u', 'Ü':'U', 'ö':'o', 'Ö':'O'}
     for k, v in dic.items():
         metin = metin.replace(k, v)
     return metin
 
-# 3. PDF FONKSİYONU (SINAV ASİSTANI İÇİN) - BytesIO İLE KESİN ÇÖZÜM
+# 3. PDF FONKSİYONU (SINAV ASİSTANI İÇİN) - BytesIO FIX
 def create_exam_pdf(text, title="Sinav Kagidi"):
     class PDF(FPDF):
         def header(self):
@@ -50,10 +51,12 @@ def create_exam_pdf(text, title="Sinav Kagidi"):
         clean_line = tr_duzelt(line)
         pdf.multi_cell(0, 10, clean_line)
         
-    pdf_output = pdf.output(dest='S')
-    return pdf_output
+    pdf_buffer = BytesIO()
+    pdf.output(pdf_buffer) # Çıktıyı BytesIO'ya yazar
+    pdf_buffer.seek(0)
+    return pdf_buffer.read() # Ham bayt dizisini döndürür
 
-# 4. PDF FONKSİYONU (TOPLANTI ASİSTANI İÇİN) - BytesIO İLE KESİN ÇÖZÜM
+# 4. PDF FONKSİYONU (TOPLANTI ASİSTANI İÇİN) - BytesIO FIX
 def create_meeting_pdf(tutanak_metni, transkript_metni):
     class PDF(FPDF):
         def header(self):
@@ -78,15 +81,17 @@ def create_meeting_pdf(tutanak_metni, transkript_metni):
     for line in transkript_metni.split('\n'):
         pdf.multi_cell(0, 5, tr_duzelt(line))
         
-    pdf_output = pdf.output(dest='S')
-    return pdf_output
+    pdf_buffer = BytesIO()
+    pdf.output(pdf_buffer) # Çıktıyı BytesIO'ya yazar
+    pdf_buffer.seek(0)
+    return pdf_buffer.read() # Ham bayt dizisini döndürür
 
 
 # 5. CLEAR STATE (st.experimental_rerun kaldırıldı)
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    # st.rerun() komutu kaldırıldı. Session state değiştiği anda otomatik yenileme olur.
+    # Sayfa yeniden çalışır
 
 
 # --- 6. ANA SAYFA VE TABLAR ---
