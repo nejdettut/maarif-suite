@@ -181,7 +181,7 @@ with tab_exam:
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    st.experimental_rerun() # Temizlemek için sayfayı yeniler
+    st.rerun() # Temizlemek için sayfayı yeniler 
 
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
@@ -269,3 +269,4 @@ with tab_meeting:
             use_container_width=True,
             type="primary"
         )
+
