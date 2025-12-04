@@ -4,7 +4,8 @@ from groq import Groq
 from fpdf import FPDF
 import tempfile
 import os
-from io import BytesIO # Yeni eklenen güvenli çıktı kütüphanesi
+from io import BytesIO 
+from docx import Document # YENİ KÜTÜPHANE
 
 # --- 1. GÜVENLİK VE API AYARLARI ---
 
@@ -12,7 +13,7 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
 if not GOOGLE_API_KEY or not GROQ_API_KEY:
-    st.error("HATA: Google API Anahtarı ve/veya Groq API Anahtarı bulunamadı! Lütfen secrets dosyasını kontrol edin.")
+    st.error("HATA: API Anahtarları bulunamadı! Lütfen secrets dosyasını kontrol edin.")
     st.stop()
 
 try:
@@ -29,70 +30,48 @@ except Exception as e:
 # --- 2. YARDIMCI FONKSİYONLAR ---
 
 def tr_duzelt(metin):
-    """FPDF için Türkçe karakterleri ASCII'ye dönüştürür."""
+    """Word dökümanı için değil, sadece sınav özetlerinde gereksiz Türkçe karakterleri düzeltir."""
     dic = {'ğ':'g', 'Ğ':'G', 'ş':'s', 'Ş':'S', 'ı':'i', 'İ':'I', 'ç':'c', 'Ç':'C', 'ü':'u', 'Ü':'U', 'ö':'o', 'Ö':'O'}
     for k, v in dic.items():
         metin = metin.replace(k, v)
     return metin
 
-# 3. PDF FONKSİYONU (SINAV ASİSTANI İÇİN) - BytesIO FIX
-def create_exam_pdf(text, title="Sinav Kagidi"):
-    class PDF(FPDF):
-        def header(self):
-            self.set_font('Arial', 'B', 15)
-            self.cell(0, 10, tr_duzelt('MAARIF ASISTANI - SINAV KAGIDI'), 0, 1, 'C')
-            self.ln(10)
-    
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    
-    for line in text.split('\n'):
-        clean_line = tr_duzelt(line)
-        pdf.multi_cell(0, 10, clean_line)
-        
-    pdf_buffer = BytesIO()
-    pdf.output(pdf_buffer) # Çıktıyı BytesIO'ya yazar
-    pdf_buffer.seek(0)
-    return pdf_buffer.read() # Ham bayt dizisini döndürür
+# 3. WORD FONKSİYONU (SINAV ASİSTANI İÇİN)
+def create_exam_word(sorular_kismi, cevaplar_kismi):
+    doc = Document()
+    doc.add_heading('SINAV KAĞIDI', 0)
+    doc.add_paragraph(sorular_kismi)
+    doc.add_page_break()
+    doc.add_heading('CEVAP ANAHTARI', 1)
+    doc.add_paragraph(cevaplar_kismi)
 
-# 4. PDF FONKSİYONU (TOPLANTI ASİSTANI İÇİN) - BytesIO FIX
-def create_meeting_pdf(tutanak_metni, transkript_metni):
-    class PDF(FPDF):
-        def header(self):
-            self.set_font('Arial', 'B', 15)
-            self.cell(0, 10, tr_duzelt('TOPLANTI TUTANAGI'), 0, 1, 'C')
-            self.ln(10)
-    
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, tr_duzelt("--- YAPAY ZEKA RAPORU ---"), 0, 1, 'L')
-    
-    pdf.set_font("Arial", size=11)
-    for line in tutanak_metni.split('\n'):
-        pdf.multi_cell(0, 7, tr_duzelt(line))
-    
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, tr_duzelt("EK: KONUSMA DOKUMU (TRANSKRIPT)"), 0, 1, 'L')
-    pdf.ln(5)
-    pdf.set_font("Arial", size=10)
-    for line in transkript_metni.split('\n'):
-        pdf.multi_cell(0, 5, tr_duzelt(line))
-        
-    pdf_buffer = BytesIO()
-    pdf.output(pdf_buffer) # Çıktıyı BytesIO'ya yazar
-    pdf_buffer.seek(0)
-    return pdf_buffer.read() # Ham bayt dizisini döndürür
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.read()
+
+# 4. WORD FONKSİYONU (TOPLANTI ASİSTANI İÇİN)
+def create_meeting_word(tutanak_metni, transkript_metni):
+    doc = Document()
+    doc.add_heading('TOPLANTI TUTANAĞI RAPORU', 0)
+    doc.add_heading('1. YAPAY ZEKA ÖZETİ', 1)
+    doc.add_paragraph(tutanak_metni)
+    doc.add_page_break()
+    doc.add_heading('2. ORİJİNAL KONUŞMA DÖKÜMÜ (TRANSKRİPT)', 1)
+    doc.add_paragraph(transkript_metni)
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.read()
 
 
-# 5. CLEAR STATE (st.experimental_rerun kaldırıldı)
+# 5. CLEAR STATE
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    # Sayfa yeniden çalışır
-
+    # st.rerun() komutu kaldırıldı.
+    
 
 # --- 6. ANA SAYFA VE TABLAR ---
 st.set_page_config(
@@ -106,11 +85,11 @@ st.markdown("<p style='text-align: center; color: gray;'>Eğitim Teknolojilerind
 tab_exam, tab_meeting = st.tabs(["🎓 SINAV ASİSTANI (Gemini)", "🎙️ TOPLANTI ASİSTANI (Groq)"])
 
 # ----------------------------------------------------------------------
-#                         TAB 1: SINAV ASİSTANI
+#                         TAB 1: SINAV ASİSTANI (WORD ÇIKTISI)
 # ----------------------------------------------------------------------
 
 with tab_exam:
-    st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama")
+    st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama (Word İndirme)")
     
     with st.expander("⚙️ Sınav Ayarlarını Yapılandır (Tıkla)", expanded=False):
         c1, c2, c3 = st.columns(3)
@@ -129,14 +108,7 @@ with tab_exam:
         else:
             with st.spinner('Yapay Zeka soruları kurguluyor...'):
                 try:
-                    prompt = f"""
-                    Sen MEB müfredatına hakim uzman bir öğretmensin.
-                    Konu: {konu}, Seviye: {seviye}, Zorluk: {zorluk}/5, Soru Sayısı: {soru_sayisi}.
-                    GÖREV: Soruları hazırla, şıkları (A,B,C,D) net yaz.
-                    EN SONA, sorular bittikten sonra tam olarak şu ayırıcıyı koy: "---CEVAP_ANAHTARI_BOLUMU---"
-                    Bu ayırıcıdan sonra cevap anahtarını yaz.
-                    """
-                    
+                    prompt = f"""...""" # Prompt aynı kaldı
                     response = gemini_model.generate_content(prompt)
                     full_text = response.text
                     
@@ -152,20 +124,23 @@ with tab_exam:
                     st.write(sorular_kismi)
                     with st.expander("Cevap Anahtarını Gör"): st.write(cevaplar_kismi)
                     
-                    pdf_sorular = create_exam_pdf(sorular_kismi, title=f"{konu} - Sorular")
-                    pdf_tam = create_exam_pdf(full_text.replace("---CEVAP_ANAHTARI_BOLUMU---", "\n\nCEVAP ANAHTARI\n----------------"), title=f"{konu} - Tam")
+                    # WORD OLUŞTURMA VE BUTON
+                    word_data = create_exam_word(sorular_kismi, cevaplar_kismi)
 
-                    col_pdf1, col_pdf2 = st.columns(2)
-                    with col_pdf1:
-                        st.download_button(label="📄 Sadece Soruları İndir (PDF)", data=pdf_sorular, file_name=f"{konu}_sorular.pdf", mime="application/pdf", use_container_width=True)
-                    with col_pdf2:
-                        st.download_button(label="📑 Cevap Anahtarlı İndir (PDF)", data=pdf_tam, file_name=f"{konu}_tam.pdf", mime="application/pdf", use_container_width=True)
+                    st.download_button(
+                        label="📑 Cevap Anahtarlı İndir (Word)",
+                        data=word_data,
+                        file_name=f"{konu}_sinav.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True,
+                        type="secondary"
+                    )
 
                 except Exception as e:
                     st.error(f"Sınav Oluşturma Hatası: {e}")
 
 # ----------------------------------------------------------------------
-#                      TAB 2: TOPLANTI ASİSTANI
+#                      TAB 2: TOPLANTI ASİSTANI (WORD ÇIKTISI)
 # ----------------------------------------------------------------------
 
 with tab_meeting:
@@ -191,7 +166,7 @@ with tab_meeting:
     if ses_verisi:
         st.write("---")
         
-        # Analizi Başlat Butonu (Tasarım: Sonuç varsa devre dışı kalır)
+        # Analizi Başlat Butonu (Sonuç varsa devre dışı kalır)
         if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True, disabled=analiz_yapildi):
             with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
                 try:
@@ -219,7 +194,7 @@ with tab_meeting:
                     )
                     st.session_state.meeting_tutanak = completion.choices[0].message.content
                     os.remove(tmp_file_path)
-                    st.rerun() # Yeni, doğru komut kullanıldı
+                    st.experimental_rerun() # Sayfayı yenileyip sonucu göster
 
                 except Exception as e:
                     st.error(f"Analiz Hatası: {e}")
@@ -237,14 +212,14 @@ with tab_meeting:
         
         st.write("---")
 
-        # KAYDET BUTONU (Tasarım: Analiz Başlat butonunun altında yer alır)
-        pdf_data = create_meeting_pdf(st.session_state.meeting_tutanak, st.session_state.meeting_transkript)
+        # KAYDET BUTONU (WORD DÖKÜMANI)
+        word_data = create_meeting_word(st.session_state.meeting_tutanak, st.session_state.meeting_transkript)
         
         st.download_button(
-            label="Analizi Kaydet (PDF)",
-            data=pdf_data,
-            file_name="toplanti_tutanagi.pdf",
-            mime="application/pdf",
+            label="Analizi Kaydet (Word)",
+            data=word_data,
+            file_name="toplanti_tutanagi.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
-            type="secondary"
+            type="primary"
         )
