@@ -7,6 +7,7 @@ import os
 
 # --- 1. GÜVENLİK VE API AYARLARI ---
 
+# Streamlit Secrets'ten anahtarları çekiyoruz
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
@@ -14,6 +15,7 @@ if not GOOGLE_API_KEY or not GROQ_API_KEY:
     st.error("HATA: Google API Anahtarı ve/veya Groq API Anahtarı bulunamadı! Lütfen secrets dosyasını kontrol edin.")
     st.stop()
 
+# Yapay Zeka Motorlarını Başlatma
 try:
     genai.configure(api_key=GOOGLE_API_KEY)
     gemini_model = genai.GenerativeModel('gemini-2.5-flash')
@@ -27,6 +29,7 @@ except Exception as e:
 
 # --- 2. YARDIMCI FONKSİYONLAR ---
 
+# Türkçe karakter desteği için temel düzeltme
 def tr_duzelt(metin):
     dic = {'ğ':'g', 'Ğ':'G', 'ş':'s', 'Ş':'S', 'ı':'i', 'İ':'I', 'ç':'c', 'Ç':'C', 'ü':'u', 'Ü':'U', 'ö':'o', 'Ö':'O'}
     for k, v in dic.items():
@@ -79,11 +82,11 @@ def create_meeting_pdf(tutanak_metni, transkript_metni):
     return pdf.output(dest='S') # <<-- Unicode fix
 
 
-# 5. CLEAR STATE (st.experimental_rerun kaldırıldı)
+# 5. CLEAR STATE (Hata veren komut düzeltildi)
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    st.rerun() # Yeni, doğru komut kullanıldı
+    st.rerun() # Yeni, doğru komut
 
 
 # --- 6. ANA SAYFA VE TABLAR ---
@@ -211,7 +214,7 @@ with tab_meeting:
                     )
                     st.session_state.meeting_tutanak = completion.choices[0].message.content
                     os.remove(tmp_file_path)
-                    st.rerun() # Yeni, doğru komut kullanıldı
+                    st.rerun() # Yeni, doğru komut
 
                 except Exception as e:
                     st.error(f"Analiz Hatası: {e}")
