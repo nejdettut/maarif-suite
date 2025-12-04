@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from groq import Groq
-from fpdf import FPDF
+from fpdf import FPDF 
 import tempfile
 import os
 from io import BytesIO 
@@ -27,7 +27,7 @@ try:
 except Exception as e:
     st.error(f"Groq API Hatası: {e}")
 
-# --- 2. YARDIMCI FONKSİYONLAR ---
+# --- 2. YARDIMCI FONKSİYONLAR (WORD FONKSİYONLARI) ---
 
 def tr_duzelt(metin):
     """Sadece görüntüleme için basit karakter düzeltme."""
@@ -36,7 +36,7 @@ def tr_duzelt(metin):
         metin = metin.replace(k, v)
     return metin
 
-# WORD FONKSİYONU (SINAV ASİSTANI İÇİN)
+# SINAV WORD FONKSİYONU
 def create_exam_word(sorular_kismi, cevaplar_kismi):
     doc = Document()
     doc.add_heading('SINAV KAĞIDI', 0)
@@ -50,7 +50,7 @@ def create_exam_word(sorular_kismi, cevaplar_kismi):
     buffer.seek(0)
     return buffer.read()
 
-# WORD FONKSİYONU (TOPLANTI ASİSTANI İÇİN)
+# TOPLANTI WORD FONKSİYONU
 def create_meeting_word(tutanak_metni, transkript_metni):
     doc = Document()
     doc.add_heading('TOPLANTI TUTANAĞI RAPORU', 0)
@@ -65,8 +65,7 @@ def create_meeting_word(tutanak_metni, transkript_metni):
     buffer.seek(0)
     return buffer.read()
 
-
-# 5. CLEAR STATE
+# CLEAR STATE
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
@@ -78,25 +77,57 @@ st.set_page_config(
     page_icon="🎓",
     layout="wide" 
 )
+
+# LOGO VE BAŞLIK
+try:
+    st.image("maarif_logo.png", width=100) # Lütfen bu dosyayı GitHub'a yükleyin
+except FileNotFoundError:
+    st.markdown("<p style='text-align: center; color: gray;'>[Logo Yüklenemedi]</p>", unsafe_allow_html=True)
 st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>MAARİF SUITE</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>Eğitim Teknolojilerinde İki Güç Bir Arada</p>", unsafe_allow_html=True)
 
-tab_exam, tab_meeting = st.tabs(["🎓 SINAV ASİSTANI (Gemini)", "🎙️ TOPLANTI ASİSTANI (Groq)"])
+# TABLAR EKLE
+tab_exam, tab_meeting, tab_about = st.tabs(["🎓 SINAV ASİSTANI", "🎙️ TOPLANTI ASİSTANI", "ℹ️ HAKKINDA"])
+
+# ----------------------------------------------------------------------
+#                           YENİ TAB: HAKKINDA
+# ----------------------------------------------------------------------
+
+with tab_about:
+    st.header("Vizyonumuz ve Hakkımda")
+    st.subheader("👨‍💻 Geliştirici: Nejdet TUT")
+    
+    st.markdown("""
+    Merhaba, ben **Nejdet TUT**. Uzman bir **Bilişim Teknolojileri Öğretmeni** ve **EdTech Geliştiricisiyim**.
+    Grafik tasarım, Python ve yapay zeka alanlarındaki 12 yılı aşkın deneyimimi eğitim teknolojilerine aktararak, öğretmenlerin dijital dönüşümüne liderlik etmeyi hedefliyorum.
+    """)
+    
+    st.subheader("💡 Proje Amacı: Öğretmen Verimliliğini Artırmak")
+    st.markdown("""
+    **Maarif Suite**, öğretmenlerin üzerindeki idari ve hazırlık yükünü hafifletmek için tasarlanmıştır. Uygulamanın temel hedefleri şunlardır:
+    * **Sınav Otomasyonu:** Gemini API gücüyle müfredata uyumlu sınav sorularını otomatik olarak oluşturarak hazırlık süresini **%90 oranında** azaltmak.
+    * **Zaman Yönetimi:** Toplantı ve ders dökümlerini anında analiz ederek profesyonel tutanaklar hazırlamak (Groq/Whisper ile).
+    * **Eğitim Teknolojilerine Katkı:** Yapay zeka destekli akıllı sistemlerin gelişiminde aktif rol almak.
+    """)
+    
+    st.subheader("📞 İletişim Bilgileri")
+    st.markdown(f"""
+    * **E-posta:** nejdettut@gmail.com
+    * **Telefon:** +90 507 795 79 36
+    * **LinkedIn:** [linkedin.com/in/nejdettut](https://www.linkedin.com/in/nejdettut)
+    """)
 
 # ----------------------------------------------------------------------
 #                         TAB 1: SINAV ASİSTANI
 # ----------------------------------------------------------------------
 
 with tab_exam:
-    st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama")
+    st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama (Word İndirme)")
     
-    # --- YENİ ÖLÇME TÜRLERİ EKLEDİ ---
     with st.expander("⚙️ Sınav Ayarlarını Yapılandır (Tıkla)", expanded=False):
-        c1, c2, c3, c4 = st.columns(4) # Kolon sayısı 3'ten 4'e çıktı
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
-            olcum_turu = st.selectbox("Ölçme Türü:", 
-                                      ("Çoktan Seçmeli", "Doğru/Yanlış", "Klasik", "Boşluk Doldurma", "Eşleştirme"),
-                                      key="olcum_turu") # YENİ ALAN
+            olcum_turu = st.selectbox("Ölçme Türü:", ("Çoktan Seçmeli", "Doğru/Yanlış", "Klasik", "Boşluk Doldurma", "Eşleştirme"), key="olcum_turu")
         with c2:
             seviye = st.selectbox("Sınıf Seviyesi:", ("İlkokul (1-4)", "Ortaokul (5-8)", "Lise (9-12)", "Üniversite Hazırlık"), key="exam_level")
         with c3:
@@ -112,7 +143,6 @@ with tab_exam:
         else:
             with st.spinner('Yapay Zeka soruları kurguluyor...'):
                 try:
-                    # --- PROMPT GÜNCELLENDİ: ÖLÇME TÜRÜ EKLENDİ ---
                     prompt = f"""
                     Sen MEB müfredatına hakim uzman bir öğretmensin.
                     Konu: {konu}, Seviye: {seviye}, Zorluk: {zorluk}/5, Soru Sayısı: {soru_sayisi}.
@@ -122,7 +152,6 @@ with tab_exam:
                     EN SONA, sorular bittikten sonra tam olarak şu ayırıcıyı koy: "---CEVAP_ANAHTARI_BOLUMU---"
                     Bu ayırıcıdan sonra cevap anahtarını yaz.
                     """
-                    
                     response = gemini_model.generate_content(prompt)
                     full_text = response.text
                     
@@ -138,7 +167,6 @@ with tab_exam:
                     st.write(sorular_kismi)
                     with st.expander("Cevap Anahtarını Gör"): st.write(cevaplar_kismi)
                     
-                    # WORD OLUŞTURMA VE BUTON
                     word_data = create_exam_word(sorular_kismi, cevaplar_kismi)
 
                     st.download_button(
@@ -160,7 +188,6 @@ with tab_exam:
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
     
-    # ... Kalan Kod Aynı Kaldı ...
     if 'meeting_tutanak' not in st.session_state: st.session_state.meeting_tutanak = None
     if 'meeting_transkript' not in st.session_state: st.session_state.meeting_transkript = None
     
@@ -181,6 +208,7 @@ with tab_meeting:
         col_start, col_reset = st.columns(2)
 
         with col_start:
+            # Analizi Başlat Butonu (Tasarım: Sonuç varsa devre dışı kalır)
             if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True, disabled=analiz_yapildi):
                 with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
                     try:
@@ -208,12 +236,13 @@ with tab_meeting:
                         )
                         st.session_state.meeting_tutanak = completion.choices[0].message.content
                         os.remove(tmp_file_path)
-                        st.rerun()
+                        st.rerun() # Sayfayı yenileyip sonucu göster
 
                     except Exception as e:
                         st.error(f"Analiz Hatası: {e}")
 
         with col_reset:
+            # Analizi Sıfırla Butonu (Aynı hizada, aynı stil)
             st.button("🔄 Analizi Sıfırla / Yeni Ses", on_click=meeting_clear_state, key="meeting_reset_col", type="secondary", use_container_width=True)
 
     # --- SONUÇLARI GÖSTER VE KAYDET BUTONU ---
