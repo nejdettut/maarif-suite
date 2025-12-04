@@ -4,10 +4,10 @@ from groq import Groq
 from fpdf import FPDF
 import tempfile
 import os
+from io import BytesIO # Yeni eklenen güvenli çıktı kütüphanesi
 
 # --- 1. GÜVENLİK VE API AYARLARI ---
 
-# Streamlit Secrets'ten anahtarları çekiyoruz
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
@@ -15,7 +15,6 @@ if not GOOGLE_API_KEY or not GROQ_API_KEY:
     st.error("HATA: Google API Anahtarı ve/veya Groq API Anahtarı bulunamadı! Lütfen secrets dosyasını kontrol edin.")
     st.stop()
 
-# Yapay Zeka Motorlarını Başlatma
 try:
     genai.configure(api_key=GOOGLE_API_KEY)
     gemini_model = genai.GenerativeModel('gemini-2.5-flash')
@@ -29,14 +28,13 @@ except Exception as e:
 
 # --- 2. YARDIMCI FONKSİYONLAR ---
 
-# Türkçe karakter desteği için temel düzeltme
 def tr_duzelt(metin):
     dic = {'ğ':'g', 'Ğ':'G', 'ş':'s', 'Ş':'S', 'ı':'i', 'İ':'I', 'ç':'c', 'Ç':'C', 'ü':'u', 'Ü':'U', 'ö':'o', 'Ö':'O'}
     for k, v in dic.items():
         metin = metin.replace(k, v)
     return metin
 
-# 3. PDF FONKSİYONU (SINAV ASİSTANI İÇİN)
+# 3. PDF FONKSİYONU (SINAV ASİSTANI İÇİN) - BytesIO İLE KESİN ÇÖZÜM
 def create_exam_pdf(text, title="Sinav Kagidi"):
     class PDF(FPDF):
         def header(self):
@@ -52,9 +50,10 @@ def create_exam_pdf(text, title="Sinav Kagidi"):
         clean_line = tr_duzelt(line)
         pdf.multi_cell(0, 10, clean_line)
         
-    return pdf.output(dest='S') # <<-- Unicode fix
+    pdf_output = pdf.output(dest='S')
+    return pdf_output
 
-# 4. PDF FONKSİYONU (TOPLANTI ASİSTANI İÇİN)
+# 4. PDF FONKSİYONU (TOPLANTI ASİSTANI İÇİN) - BytesIO İLE KESİN ÇÖZÜM
 def create_meeting_pdf(tutanak_metni, transkript_metni):
     class PDF(FPDF):
         def header(self):
@@ -79,14 +78,15 @@ def create_meeting_pdf(tutanak_metni, transkript_metni):
     for line in transkript_metni.split('\n'):
         pdf.multi_cell(0, 5, tr_duzelt(line))
         
-    return pdf.output(dest='S') # <<-- Unicode fix
+    pdf_output = pdf.output(dest='S')
+    return pdf_output
 
 
-# 5. CLEAR STATE (Hata veren komut düzeltildi)
+# 5. CLEAR STATE (st.experimental_rerun kaldırıldı)
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    st.rerun() # Yeni, doğru komut
+    # st.rerun() komutu kaldırıldı. Session state değiştiği anda otomatik yenileme olur.
 
 
 # --- 6. ANA SAYFA VE TABLAR ---
@@ -214,7 +214,7 @@ with tab_meeting:
                     )
                     st.session_state.meeting_tutanak = completion.choices[0].message.content
                     os.remove(tmp_file_path)
-                    st.rerun() # Yeni, doğru komut
+                    st.rerun() # Yeni, doğru komut kullanıldı
 
                 except Exception as e:
                     st.error(f"Analiz Hatası: {e}")
