@@ -79,24 +79,25 @@ st.set_page_config(
 )
 
 # --- LOGO VE BAŞLIK ---
-# Ortalamak için üç sütun kullanıyoruz
-col_left, col_center, col_right = st.columns([1, 4, 1])
+# Ortalamak için geniş bir orta sütun kullanıyoruz (1:6:1 oranı)
+col_left, col_center, col_right = st.columns([1, 6, 1])
 
 with col_center:
+    # Logoyu ortalamak için CSS ile bir div kullanıyoruz
+    st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
     try:
-        # Logo dosyası ortada ve daha büyük görünecek (150 width)
-        st.image("maarif_logo.png", width=150) 
+        # Boyut 150'den 250'ye çıkarıldı.
+        st.image("maarif_logo.png", width=250) 
     except FileNotFoundError:
-        # Eğer dosya bulunamazsa sadece başlığı gösterir
-        pass
-
+        st.markdown("<p style='text-align: center; color: gray;'>[Logo Yüklenemedi, Lütfen maarif_logo.png dosyasını kontrol edin.]</p>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>MAARİF SUITE</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Eğitim Teknolojilerinde İki Güç Bir Arada</p>", unsafe_allow_html=True)
-    st.write("---") # Yatay çizgi ekliyoruz
+    st.write("---") # Yatay çizgi
 
 # TABLAR EKLE (Bu satırın hemen ardından gelmeli)
 tab_exam, tab_meeting, tab_about = st.tabs(["🎓 SINAV ASİSTANI", "🎙️ TOPLANTI ASİSTANI", "ℹ️ HAKKINDA"])
-
 # ----------------------------------------------------------------------
 #                           YENİ TAB: HAKKINDA
 # ----------------------------------------------------------------------
@@ -276,4 +277,5 @@ with tab_meeting:
             use_container_width=True,
             type="primary"
         )
+
 
