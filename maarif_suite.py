@@ -179,22 +179,24 @@ with tab_exam:
 
 # Session State'i sıfırlamak için kullanılır.
 def meeting_clear_state():
+    # Session state'i temizlemek, Streamlit'in otomatik olarak sayfayı yenilemesi için yeterlidir.
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-   
+    # Buradaki st.rerun() komutu "no-op" hatasına neden olduğu için kaldırılmıştır.
 
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
+    
+    # Sıfırla Butonu (Yeni Analize Geçişi Sağlar)
     st.button("🔄 Analizi Sıfırla / Yeni Ses", on_click=meeting_clear_state, key="meeting_reset")
     st.write("---")
 
-    # Session State'i kurma
+    # Session State ve Giriş Alanları (Aynı Kaldı)
     if 'meeting_tutanak' not in st.session_state:
         st.session_state.meeting_tutanak = None
     if 'meeting_transkript' not in st.session_state:
         st.session_state.meeting_transkript = None
     
-    # Giriş Alanları
     col_upload, col_record = st.columns([1, 1])
     with col_upload:
         uploaded_file = st.file_uploader("Ses Dosyası Yükle (mp3, wav)", type=['mp3', 'wav', 'm4a'], key="meeting_upload")
@@ -207,45 +209,50 @@ with tab_meeting:
     if ses_verisi:
         st.write("---")
         
-        # Eğer hafızada sonuç yoksa Analiz butonunu göster.
-        if st.session_state.meeting_tutanak is None: 
-            if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True):
-                with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
-                    try:
-                        # 1. Geçici Dosya Oluştur
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
-                            tmp_file.write(ses_verisi.getvalue())
-                            tmp_file_path = tmp_file.name
+        # 'disabled' durumu kontrolü: Tutanak varsa butonu devre dışı bırak.
+        analiz_yapildi = st.session_state.meeting_tutanak is not None
+        
+        # Analizi Başlat Butonu (Her zaman görünür)
+        if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True, disabled=analiz_yapildi):
+            with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
+                try:
+                    # [ANALİZ KODU BAŞLANGIÇ] (Sıfırla butonu basılmadıkça bu kod tekrar çalışmaz)
+                    
+                    # 1. Geçici Dosya Oluştur
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+                        tmp_file.write(ses_verisi.getvalue())
+                        tmp_file_path = tmp_file.name
 
-                        # 2. SESİ YAZIYA DÖKME (Whisper)
-                        with open(tmp_file_path, "rb") as file:
-                            transcription = groq_client.audio.transcriptions.create(
-                                file=(tmp_file_path, file.read()),
-                                model="whisper-large-v3",
-                                response_format="text"
-                            )
-                        st.session_state.meeting_transkript = transcription
-                        
-                        # 3. ANALİZ ETME (Llama 3.3)
-                        prompt = f"""
-                        Aşağıdaki metin bir toplantı dökümüdür. Bunu profesyonel bir tutanak haline getir.
-                        METİN: {st.session_state.meeting_transkript}
-                        İSTENEN RAPOR FORMATI: 1. 📝 ÖZET 2. ✅ ALINAN KARARLAR 3. 📌 GÖREV DAĞILIMI
-                        """
-                        completion = groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=[{"role": "system", "content": "Sen profesyonel bir okul asistanısın. Türkçe cevap ver."}, {"role": "user", "content": prompt}],
+                    # 2. WHISPER (Sesi Yazıya Dök)
+                    with open(tmp_file_path, "rb") as file:
+                        transcription = groq_client.audio.transcriptions.create(
+                            file=(tmp_file_path, file.read()),
+                            model="whisper-large-v3",
+                            response_format="text"
                         )
-                        st.session_state.meeting_tutanak = completion.choices[0].message.content
-                        os.remove(tmp_file_path)
+                    st.session_state.meeting_transkript = transcription
+                    
+                    # 3. ANALİZ ETME (Llama 3.3)
+                    prompt = f"""
+                    Aşağıdaki metin bir toplantı dökümüdür. Bunu profesyonel bir tutanak haline getir.
+                    METİN: {st.session_state.meeting_transkript}
+                    İSTENEN RAPOR FORMATI: 1. 📝 ÖZET 2. ✅ ALINAN KARARLAR 3. 📌 GÖREV DAĞILIMI
+                    """
+                    completion = groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": "Sen profesyonel bir okul asistanısın. Türkçe cevap ver."}, {"role": "user", "content": prompt}],
+                    )
+                    st.session_state.meeting_tutanak = completion.choices[0].message.content
+                    os.remove(tmp_file_path)
+                    st.experimental_rerun() # Sonuçlar görünür görünmez sayfayı yeniler
 
-                    except Exception as e:
-                        st.error(f"Analiz Hatası: {e}")
+                except Exception as e:
+                    st.error(f"Analiz Hatası: {e}")
 
     # --- SONUÇLARI GÖSTER VE KAYDET BUTONU ---
     if st.session_state.meeting_tutanak is not None:
         st.write("---")
-        st.success("Analiz Başarılı! Aşağıdan raporu inceleyip indirebilirsiniz.")
+        st.success("Analiz Başarılı! Raporu aşağıdan inceleyip indirebilirsiniz.")
 
         # 1. Transkript
         with st.expander("📄 Konuşma Dökümünü Gör (Transkript)", expanded=False):
@@ -257,16 +264,17 @@ with tab_meeting:
         
         st.write("---")
 
-        # 3. PDF OLUŞTURMA VE BUTON (BU BUTON ASLA KAYBOLMAMALI)
+        # 3. PDF OLUŞTURMA VE İNDİRME BUTONU (Analizi Kaydet)
         pdf_data = create_meeting_pdf(st.session_state.meeting_tutanak, st.session_state.meeting_transkript)
         
+        # Yeni Buton (Analizi Başlat butonunun altında yer alır)
         st.download_button(
             label="Analizi Kaydet (PDF)",
             data=pdf_data,
             file_name="toplanti_tutanagi.pdf",
             mime="application/pdf",
             use_container_width=True,
-            type="primary"
+            type="secondary"
         )
 
 
