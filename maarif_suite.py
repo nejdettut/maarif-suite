@@ -181,7 +181,7 @@ with tab_exam:
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    st.rerun() # Temizlemek için sayfayı yeniler 
+   
 
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
@@ -238,7 +238,6 @@ with tab_meeting:
                         )
                         st.session_state.meeting_tutanak = completion.choices[0].message.content
                         os.remove(tmp_file_path)
-                        st.experimental_rerun() # Sayfayı yenileyip sonucu ve butonu göster
 
                     except Exception as e:
                         st.error(f"Analiz Hatası: {e}")
@@ -269,4 +268,5 @@ with tab_meeting:
             use_container_width=True,
             type="primary"
         )
+
 
