@@ -1,11 +1,11 @@
 import streamlit as st
 import google.generativeai as genai
 from groq import Groq
-from fpdf import FPDF # Kaldırmıyoruz, sadece kullanmıyoruz.
+from fpdf import FPDF
 import tempfile
 import os
 from io import BytesIO 
-from docx import Document # YENİ KÜTÜPHANE
+from docx import Document 
 
 # --- 1. GÜVENLİK VE API AYARLARI ---
 
@@ -36,7 +36,7 @@ def tr_duzelt(metin):
         metin = metin.replace(k, v)
     return metin
 
-# 3. WORD FONKSİYONU (SINAV ASİSTANI İÇİN)
+# WORD FONKSİYONU (SINAV ASİSTANI İÇİN)
 def create_exam_word(sorular_kismi, cevaplar_kismi):
     doc = Document()
     doc.add_heading('SINAV KAĞIDI', 0)
@@ -50,7 +50,7 @@ def create_exam_word(sorular_kismi, cevaplar_kismi):
     buffer.seek(0)
     return buffer.read()
 
-# 4. WORD FONKSİYONU (TOPLANTI ASİSTANI İÇİN)
+# WORD FONKSİYONU (TOPLANTI ASİSTANI İÇİN)
 def create_meeting_word(tutanak_metni, transkript_metni):
     doc = Document()
     doc.add_heading('TOPLANTI TUTANAĞI RAPORU', 0)
@@ -70,7 +70,6 @@ def create_meeting_word(tutanak_metni, transkript_metni):
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    # Sayfa otomatik yenilenir.
 
 
 # --- 6. ANA SAYFA VE TABLAR ---
@@ -85,19 +84,24 @@ st.markdown("<p style='text-align: center; color: gray;'>Eğitim Teknolojilerind
 tab_exam, tab_meeting = st.tabs(["🎓 SINAV ASİSTANI (Gemini)", "🎙️ TOPLANTI ASİSTANI (Groq)"])
 
 # ----------------------------------------------------------------------
-#                         TAB 1: SINAV ASİSTANI (WORD ÇIKTISI)
+#                         TAB 1: SINAV ASİSTANI
 # ----------------------------------------------------------------------
 
 with tab_exam:
-    st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama (Word İndirme)")
+    st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama")
     
+    # --- YENİ ÖLÇME TÜRLERİ EKLEDİ ---
     with st.expander("⚙️ Sınav Ayarlarını Yapılandır (Tıkla)", expanded=False):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4) # Kolon sayısı 3'ten 4'e çıktı
         with c1:
-            seviye = st.selectbox("Sınıf Seviyesi:", ("İlkokul (1-4)", "Ortaokul (5-8)", "Lise (9-12)", "Üniversite Hazırlık"), key="exam_level")
+            olcum_turu = st.selectbox("Ölçme Türü:", 
+                                      ("Çoktan Seçmeli", "Doğru/Yanlış", "Klasik", "Boşluk Doldurma", "Eşleştirme"),
+                                      key="olcum_turu") # YENİ ALAN
         with c2:
-            zorluk = st.slider("Zorluk:", 1, 5, 3, key="exam_diff")
+            seviye = st.selectbox("Sınıf Seviyesi:", ("İlkokul (1-4)", "Ortaokul (5-8)", "Lise (9-12)", "Üniversite Hazırlık"), key="exam_level")
         with c3:
+            zorluk = st.slider("Zorluk:", 1, 5, 3, key="exam_diff")
+        with c4:
             soru_sayisi = st.number_input("Soru Sayısı:", 1, 20, 5, key="exam_count")
 
     konu = st.text_input("", placeholder="Hangi konuda sınav hazırlamak istersin?", key="exam_topic")
@@ -108,13 +112,17 @@ with tab_exam:
         else:
             with st.spinner('Yapay Zeka soruları kurguluyor...'):
                 try:
+                    # --- PROMPT GÜNCELLENDİ: ÖLÇME TÜRÜ EKLENDİ ---
                     prompt = f"""
                     Sen MEB müfredatına hakim uzman bir öğretmensin.
                     Konu: {konu}, Seviye: {seviye}, Zorluk: {zorluk}/5, Soru Sayısı: {soru_sayisi}.
-                    GÖREV: Soruları hazırla, şıkları (A,B,C,D) net yaz.
+                    Sınav Türü: {olcum_turu}.
+
+                    GÖREV: Soruları istenen formatta hazırlarken, öğrencilerin seviyesine uygun ve MEB müfredatına hakim ol.
                     EN SONA, sorular bittikten sonra tam olarak şu ayırıcıyı koy: "---CEVAP_ANAHTARI_BOLUMU---"
                     Bu ayırıcıdan sonra cevap anahtarını yaz.
                     """
+                    
                     response = gemini_model.generate_content(prompt)
                     full_text = response.text
                     
@@ -146,19 +154,16 @@ with tab_exam:
                     st.error(f"Sınav Oluşturma Hatası: {e}")
 
 # ----------------------------------------------------------------------
-#                      TAB 2: TOPLANTI ASİSTANI (WORD ÇIKTISI)
+#                      TAB 2: TOPLANTI ASİSTANI
 # ----------------------------------------------------------------------
-
-# Session State'i sıfırlamak için kullanılır.
-def meeting_clear_state():
-    st.session_state.meeting_tutanak = None
-    st.session_state.meeting_transkript = None
-    # Session state temizlendikten sonra sayfa otomatik yenilenir.
 
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
     
-    # Giriş Alanları (Aynı Kaldı)
+    # ... Kalan Kod Aynı Kaldı ...
+    if 'meeting_tutanak' not in st.session_state: st.session_state.meeting_tutanak = None
+    if 'meeting_transkript' not in st.session_state: st.session_state.meeting_transkript = None
+    
     col_upload, col_record = st.columns([1, 1])
     with col_upload:
         uploaded_file = st.file_uploader("Ses Dosyası Yükle (mp3, wav)", type=['mp3', 'wav', 'm4a'], key="meeting_upload")
@@ -167,20 +172,15 @@ with tab_meeting:
 
     ses_verisi = uploaded_file if uploaded_file else audio_recording
     
-    # State Kontrolü (Aynı Kaldı)
-    if 'meeting_tutanak' not in st.session_state: st.session_state.meeting_tutanak = None
-    if 'meeting_transkript' not in st.session_state: st.session_state.meeting_transkript = None
     analiz_yapildi = st.session_state.meeting_tutanak is not None
 
-    # --- İŞLEM VE KONTROL BUTONLARI ---
+    # --- İŞLEM KISMI ---
     if ses_verisi:
         st.write("---")
         
-        # Tasarım İsteği: Başlat ve Sıfırla Yan Yana, Aynı Hizada
         col_start, col_reset = st.columns(2)
 
         with col_start:
-            # Analizi Başlat Butonu (Sonuç varsa devre dışı kalır)
             if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True, disabled=analiz_yapildi):
                 with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
                     try:
@@ -208,13 +208,12 @@ with tab_meeting:
                         )
                         st.session_state.meeting_tutanak = completion.choices[0].message.content
                         os.remove(tmp_file_path)
-                        st.rerun() # Sayfayı yenileyip sonucu ve butonu göster
+                        st.rerun()
 
                     except Exception as e:
                         st.error(f"Analiz Hatası: {e}")
 
         with col_reset:
-            # Analizi Sıfırla Butonu (Aynı hizada, aynı stil)
             st.button("🔄 Analizi Sıfırla / Yeni Ses", on_click=meeting_clear_state, key="meeting_reset_col", type="secondary", use_container_width=True)
 
     # --- SONUÇLARI GÖSTER VE KAYDET BUTONU ---
@@ -230,7 +229,6 @@ with tab_meeting:
         
         st.write("---")
 
-        # KAYDET BUTONU (Analiz Başlat butonunun altında yer alır)
         word_data = create_meeting_word(st.session_state.meeting_tutanak, st.session_state.meeting_transkript)
         
         st.download_button(
