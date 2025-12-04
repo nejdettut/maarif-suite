@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from groq import Groq
-from fpdf import FPDF
+from fpdf import FPDF # Kaldırmıyoruz, sadece kullanmıyoruz.
 import tempfile
 import os
 from io import BytesIO 
@@ -30,7 +30,7 @@ except Exception as e:
 # --- 2. YARDIMCI FONKSİYONLAR ---
 
 def tr_duzelt(metin):
-    """Word dökümanı için değil, sadece sınav özetlerinde gereksiz Türkçe karakterleri düzeltir."""
+    """Sadece görüntüleme için basit karakter düzeltme."""
     dic = {'ğ':'g', 'Ğ':'G', 'ş':'s', 'Ş':'S', 'ı':'i', 'İ':'I', 'ç':'c', 'Ç':'C', 'ü':'u', 'Ü':'U', 'ö':'o', 'Ö':'O'}
     for k, v in dic.items():
         metin = metin.replace(k, v)
@@ -70,8 +70,8 @@ def create_meeting_word(tutanak_metni, transkript_metni):
 def meeting_clear_state():
     st.session_state.meeting_tutanak = None
     st.session_state.meeting_transkript = None
-    # st.rerun() komutu kaldırıldı.
-    
+    # Sayfa otomatik yenilenir.
+
 
 # --- 6. ANA SAYFA VE TABLAR ---
 st.set_page_config(
@@ -108,7 +108,13 @@ with tab_exam:
         else:
             with st.spinner('Yapay Zeka soruları kurguluyor...'):
                 try:
-                    prompt = f"""...""" # Prompt aynı kaldı
+                    prompt = f"""
+                    Sen MEB müfredatına hakim uzman bir öğretmensin.
+                    Konu: {konu}, Seviye: {seviye}, Zorluk: {zorluk}/5, Soru Sayısı: {soru_sayisi}.
+                    GÖREV: Soruları hazırla, şıkları (A,B,C,D) net yaz.
+                    EN SONA, sorular bittikten sonra tam olarak şu ayırıcıyı koy: "---CEVAP_ANAHTARI_BOLUMU---"
+                    Bu ayırıcıdan sonra cevap anahtarını yaz.
+                    """
                     response = gemini_model.generate_content(prompt)
                     full_text = response.text
                     
@@ -194,7 +200,7 @@ with tab_meeting:
                     )
                     st.session_state.meeting_tutanak = completion.choices[0].message.content
                     os.remove(tmp_file_path)
-                    st.experimental_rerun() # Sayfayı yenileyip sonucu göster
+                    st.rerun() # Sayfayı yenileyip sonucu göster
 
                 except Exception as e:
                     st.error(f"Analiz Hatası: {e}")
