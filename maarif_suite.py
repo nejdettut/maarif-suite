@@ -2,12 +2,13 @@ import streamlit as st
 import google.generativeai as genai
 from groq import Groq
 from fpdf import FPDF
+import time
 import tempfile
 import os
 
 # --- 1. GÜVENLİK VE API AYARLARI ---
 
-# Streamlit Secrets'ten anahtarları çekiyoruz
+# Secrets'ten anahtarları çekiyoruz
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
@@ -52,7 +53,7 @@ def create_exam_pdf(text, title="Sinav Kagidi"):
         clean_line = tr_duzelt(line)
         pdf.multi_cell(0, 10, clean_line)
         
-    return pdf.output(dest='S') # <<-- .encode('latin-1', 'ignore') SİLİNDİ
+    return pdf.output(dest='S') # Unicode fix: .encode('latin-1', 'ignore') KALDIRILDI
 
 # 4. PDF FONKSİYONU (TOPLANTI ASİSTANI İÇİN) - Unicode Fix Uygulandı
 def create_meeting_pdf(tutanak_metni, transkript_metni):
@@ -79,10 +80,17 @@ def create_meeting_pdf(tutanak_metni, transkript_metni):
     for line in transkript_metni.split('\n'):
         pdf.multi_cell(0, 5, tr_duzelt(line))
         
-    return pdf.output(dest='S') # <<-- .encode('latin-1', 'ignore') SİLİNDİ
+    return pdf.output(dest='S') # Unicode fix: .encode('latin-1', 'ignore') KALDIRILDI
 
 
-# --- 5. ANA SAYFA VE TABLAR ---
+# 5. CLEAR STATE (Hata veren komut kaldırıldı)
+def meeting_clear_state():
+    st.session_state.meeting_tutanak = None
+    st.session_state.meeting_transkript = None
+    # st.rerun() komutu kaldırıldı. State değişimi zaten otomatik yenileme tetikler.
+
+
+# --- 6. ANA SAYFA VE TABLAR ---
 st.set_page_config(
     page_title="Maarif Suite",
     page_icon="🎓",
@@ -96,7 +104,7 @@ tab_exam, tab_meeting = st.tabs(["🎓 SINAV ASİSTANI (Gemini)", "🎙️ TOPLA
 # ----------------------------------------------------------------------
 #                         TAB 1: SINAV ASİSTANI
 # ----------------------------------------------------------------------
-# ... (Sınav Asistanı Kodu Aynı Kalır) ...
+
 with tab_exam:
     st.markdown("### ✨ Yapay Zeka Destekli Sınav Kurgulama")
     
@@ -117,7 +125,14 @@ with tab_exam:
         else:
             with st.spinner('Yapay Zeka soruları kurguluyor...'):
                 try:
-                    prompt = f"""...""" # Kısaltıldı
+                    prompt = f"""
+                    Sen MEB müfredatına hakim uzman bir öğretmensin.
+                    Konu: {konu}, Seviye: {seviye}, Zorluk: {zorluk}/5, Soru Sayısı: {soru_sayisi}.
+                    GÖREV: Soruları hazırla, şıkları (A,B,C,D) net yaz.
+                    EN SONA, sorular bittikten sonra tam olarak şu ayırıcıyı koy: "---CEVAP_ANAHTARI_BOLUMU---"
+                    Bu ayırıcıdan sonra cevap anahtarını yaz.
+                    """
+                    
                     response = gemini_model.generate_content(prompt)
                     full_text = response.text
                     
@@ -149,15 +164,9 @@ with tab_exam:
 #                      TAB 2: TOPLANTI ASİSTANI
 # ----------------------------------------------------------------------
 
-# Session State'i sıfırlamak için kullanılır.
-def meeting_clear_state():
-    st.session_state.meeting_tutanak = None
-    st.session_state.meeting_transkript = None
-
 with tab_meeting:
     st.markdown("### 🎙️ Sesli Toplantı Tutanak Motoru")
     
-    # Sıfırla Butonu her zaman görünür ve hafızayı temizler
     st.button("🔄 Analizi Sıfırla / Yeni Ses", on_click=meeting_clear_state, key="meeting_reset")
     st.write("---")
 
@@ -172,14 +181,13 @@ with tab_meeting:
 
     ses_verisi = uploaded_file if uploaded_file else audio_recording
     
-    # Analizin yapılıp yapılmadığını kontrol eden değişken
     analiz_yapildi = st.session_state.meeting_tutanak is not None
 
     # --- İŞLEM KISMI ---
     if ses_verisi:
         st.write("---")
         
-        # Analizi Başlat Butonu (Tasarım İstendiği Gibi: Yerinde kalır ama devre dışı kalır)
+        # Analizi Başlat Butonu (Tasarım: Sonuç varsa devre dışı kalır)
         if st.button("📝 Analizi Başlat", key="meeting_start", type="primary", use_container_width=True, disabled=analiz_yapildi):
             with st.spinner("⚡ Groq/Whisper motoru dinliyor ve Llama 3 analiz ediyor..."):
                 try:
@@ -189,9 +197,50 @@ with tab_meeting:
                         tmp_file_path = tmp_file.name
 
                     with open(tmp_file_path, "rb") as file:
-                        transcription = groq_client.audio.transcriptions.create(
+                        transcription_result = groq_client.audio.transcriptions.create( # SyntaxError Fix
                             file=(tmp_file_path, file.read()),
                             model="whisper-large-v3",
                             response_format="text"
                         )
-                    st.session_state.meeting_transkript =
+                    st.session_state.meeting_transkript = transcription_result
+                    
+                    prompt = f"""
+                    Aşağıdaki metin bir toplantı dökümüdür. Bunu profesyonel bir tutanak haline getir.
+                    METİN: {st.session_state.meeting_transkript}
+                    İSTENEN RAPOR FORMATI: 1. 📝 ÖZET 2. ✅ ALINAN KARARLAR 3. 📌 GÖREV DAĞILIMI
+                    """
+                    completion = groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": "Sen profesyonel bir okul asistanısın. Türkçe cevap ver."}, {"role": "user", "content": prompt}],
+                    )
+                    st.session_state.meeting_tutanak = completion.choices[0].message.content
+                    os.remove(tmp_file_path)
+                    st.experimental_rerun() # Sayfayı yenileyip sonucu ve butonu göster
+
+                except Exception as e:
+                    st.error(f"Analiz Hatası: {e}")
+
+    # --- SONUÇLARI GÖSTER VE KAYDET BUTONU ---
+    if st.session_state.meeting_tutanak is not None:
+        st.write("---")
+        st.success("Analiz Başarılı! Raporu inceleyip aşağıdan indirebilirsiniz.")
+
+        with st.expander("📄 Konuşma Dökümünü Gör (Transkript)", expanded=False):
+            st.write(st.session_state.meeting_transkript)
+        
+        st.markdown("### 📋 Oluşturulan Tutanak")
+        st.markdown(st.session_state.meeting_tutanak)
+        
+        st.write("---")
+
+        # KAYDET BUTONU (Tasarım: Analiz Başlat butonunun altında yer alır)
+        pdf_data = create_meeting_pdf(st.session_state.meeting_tutanak, st.session_state.meeting_transkript)
+        
+        st.download_button(
+            label="Analizi Kaydet (PDF)",
+            data=pdf_data,
+            file_name="toplanti_tutanagi.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            type="secondary"
+        )
