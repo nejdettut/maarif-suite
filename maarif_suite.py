@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from groq import Groq
-# FPDF artık kullanılmıyor (Unicode hatası nedeniyle)
+# FPDF kütüphanesi Unicode hataları nedeniyle kaldırılmıştır.
 import tempfile
 import os
 from io import BytesIO 
@@ -106,8 +106,9 @@ with tab_about:
     st.subheader("👨‍💻 Geliştirici: Nejdet TUT")
     
     st.markdown(f"""
-    Merhaba, ben **Nejdet TUT**. Uzman bir **Bilişim Teknolojileri Öğretmeni** ve **EdTech Geliştiricisiyim**.
-    Python, Yapay Zeka ve Grafik Tasarım alanlarındaki 12 yılı aşkın deneyimimi eğitim teknolojilerine aktararak, öğretmenlerin dijital dönüşümüne liderlik etmeyi hedefliyorum.
+    Merhaba, ben **Nejdet TUT**. Uzman bir **Bilişim Teknolojileri Öğretmeni** ve **EdTech Geliştiricisiyim**. Grafik tasarım kökenli bir teknoloji eğitimcisi olarak, **12 yılı aşkın öğretmenlik** tecrübemi Yapay Zeka ve Veri Bilimi ile birleştiriyorum.
+
+    **Eğitim Bilgisi:** Trakya Üniversitesi'nden Bilgisayar ve Öğretim Teknolojileri Öğretmenliği bölümünden mezun oldum.
     """)
     
     st.subheader("💡 Proje Amacı: Öğretmen Verimliliğini Artırmak")
