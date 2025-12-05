@@ -1,7 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
 from groq import Groq
-# FPDF kütüphanesi Unicode hataları nedeniyle kaldırılmıştır.
 import tempfile
 import os
 from io import BytesIO 
@@ -83,6 +82,7 @@ st.set_page_config(
 col_left, col_center, col_right = st.columns([1, 6, 1])
 
 with col_center:
+    # CSS ile merkezi bir alan oluşturuldu
     st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
     try:
         # LOGO: Büyük (250px) ve ortalı
